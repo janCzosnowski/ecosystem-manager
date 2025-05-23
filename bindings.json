@@ -1,1 +1,0 @@
-[{"event":"lol.newTraining","from":"","to":"","handler":"calendar.newEvent"},{"event":"lol.requestCalendarHistory","from":"","to":"","handler":"calendar.receiveHistoryRequest"},{"event":"calendar.sendHistory","from":"","to":"","handler":"lol.recieveCalendarHistory"},{"event":"newTraining","from":"lol-planner","to":"calendar","handler":"addEvent"}]

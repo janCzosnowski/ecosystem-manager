@@ -1,5 +1,5 @@
-./meta/
-./systems/
-./systems.json
-./bindings.json
-./todo.md
+meta/*
+systems/*
+systems.json
+bindings.json
+todo.md
