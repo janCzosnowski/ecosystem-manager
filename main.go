@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,6 +20,9 @@ type Binding struct {
 	Handler string `json:"handler"`
 }
 
+var bindingsListPath = os.Getenv("HOME") + "/.config/ecosystem-manager/bindings.json"
+var systemsListPath = os.Getenv("HOME") + "/.config/ecosystem-manager/systems.json"
+
 func addBinding(Event, From, To, Handler string) error {
 	bindings, err := loadBindings()
 	if err != nil {
@@ -28,7 +32,7 @@ func addBinding(Event, From, To, Handler string) error {
 	bindings = append(bindings, Binding{Event: Event, From: From, To: To, Handler: Handler})
 
 	newFile, err := json.Marshal(bindings)
-	os.WriteFile("bindings.json", newFile, 0644)
+	os.WriteFile(bindingsListPath, newFile, 0644)
 	return nil
 }
 
@@ -108,7 +112,7 @@ func removeBindingInteractive(event, from, to, handler string) error {
 }
 
 func loadBindings() ([]Binding, error) {
-	data, err := os.ReadFile("bindings.json")
+	data, err := os.ReadFile(bindingsListPath)
 	if err != nil {
 		return nil, err
 	}
@@ -121,13 +125,13 @@ func loadBindings() ([]Binding, error) {
 	return bindings, nil
 }
 
-func loadSystems() (map[string]any, error) {
-	data, err := os.ReadFile("systems.json")
+func loadSystems() (map[string]string, error) {
+	data, err := os.ReadFile(systemsListPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var systems map[string]any
+	var systems map[string]string
 	err = json.Unmarshal(data, &systems)
 	if err != nil {
 		return nil, err
@@ -136,41 +140,41 @@ func loadSystems() (map[string]any, error) {
 	return systems, nil
 }
 
-func addSystem(name string) error {
+func addSystem(systemName, path string) error {
 	systems, err := loadSystems()
 	if err != nil {
 		fmt.Println("Failed loading systems:", err)
 		return err
 	}
-	systems[name] = map[string]any{}
+	systems[systemName] = path
 	newFile, err := json.MarshalIndent(systems, "", " ")
 	if err != nil {
 		fmt.Println("Code error, failed to Marshall", err)
 		return err
 	}
-	err = os.WriteFile("systems.json", newFile, 0644)
+	err = os.WriteFile(systemsListPath, newFile, 0644)
 	if err != nil {
-		fmt.Println("Error saving systems.json:", err)
+		fmt.Println("Error saving /.config/ecosystem-manager/systems.json:", err)
 		return err
 	}
 	return nil
 }
 
-func removeSystem(name string) error {
+func removeSystem(systemName string) error {
 	systems, err := loadSystems()
 	if err != nil {
 		fmt.Println("Failed loading systems:", err)
 		return err
 	}
-	delete(systems, name)
+	delete(systems, systemName)
 	newFile, err := json.MarshalIndent(systems, "", " ")
 	if err != nil {
 		fmt.Println("Code error, failed to Marshall", err)
 		return err
 	}
-	err = os.WriteFile("systems.json", newFile, 0644)
+	err = os.WriteFile(systemsListPath, newFile, 0644)
 	if err != nil {
-		fmt.Println("Error saving systems.json:", err)
+		fmt.Println("Error saving /.config/ecosystem-manager/systems.json:", err)
 		return err
 	}
 	return nil
@@ -185,11 +189,11 @@ func runSystem(systemName string, systemArgs []string) {
 	}
 
 	if _, exists := systems[systemName]; !exists {
-		fmt.Printf("System '%s' not found in systems.json\n", systemName)
+		fmt.Printf("Requested system '%s' not added to /.config/ecosystem-manager/systems.json\n", systemName)
 		return
 	}
 
-	scriptPath := fmt.Sprintf("./systems/%s/main.sh", systemName)
+	scriptPath := fmt.Sprintf("%s", systems[systemName])
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		fmt.Printf("Error: The executable %s doesn't exist", scriptPath)
 		return
@@ -199,7 +203,7 @@ func runSystem(systemName string, systemArgs []string) {
 	cmdToRun.Stdout = os.Stdout
 	cmdToRun.Stderr = os.Stderr
 
-	fmt.Println("Running:", scriptPath, strings.Join(systemArgs, ""))
+	fmt.Println("Running:", systemName, "at", scriptPath, "with args:", strings.Join(systemArgs, ""))
 	err = cmdToRun.Run()
 	if err != nil {
 		fmt.Println("Error running system:", err)
@@ -212,7 +216,7 @@ func main() {
 	var cmdRun = &cobra.Command{
 		Use:   "run [system] args",
 		Short: "Run a specified system",
-		Long:  "Run a specified system from your list of systems defined in systems.json",
+		Long:  "Run a specified system from your list of systems defined in /.config/ecosystem-manager/systems.json",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
@@ -229,38 +233,50 @@ func main() {
 	var cmdList = &cobra.Command{
 		Use:   "list",
 		Short: "List added systems",
-		Long:  "List systems from the list of systems defined in systems.json",
+		Long:  "List systems from the list of systems defined in /.config/ecosystem-manager/systems.json",
 		Run: func(cmd *cobra.Command, args []string) {
-			list, err := loadSystems()
+			systems, err := loadSystems()
 			if err != nil {
 				fmt.Println("error loading systems:", err)
 				return
 			}
-			seq := maps.Keys(list)
-			var keys []string
+			seq := maps.Keys(systems)
+			var keys string
 			for key := range seq {
-				keys = append(keys, key)
+				keys = keys + "\n" + key
 			}
-			fmt.Printf("Systems: %v", keys)
+			fmt.Printf("Systems:%v", keys)
 		},
 	}
 	var cmdRemoveSystem = &cobra.Command{
 		Use:   "remove [system name]",
 		Short: "Removes a system",
-		Long:  "Removes a system to systems.json",
+		Long:  "Removes a system from $HOME/.config/ecosystem-manager/systems.json",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := removeSystem(args[0])
+			systemName := args[0]
+			err := removeSystem(systemName)
 			if err == nil {
 				fmt.Println("System removed successfully")
 			}
 		},
 	}
 	var cmdAddSystem = &cobra.Command{
-		Use:   "add [system name]",
+		Use:   "add [system name] [system main executable path]",
 		Short: "Adds a system",
-		Long:  "Adds a system to systems.json",
+		Long:  "Adds a system to $HOME/.config/ecosystem-manager/systems.json",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := addSystem(args[0])
+			if len(args) != 2 {
+				fmt.Println("Please insert 2 arguments: name and path")
+			}
+
+			systemName := args[0]
+			path, err := filepath.Abs(args[1])
+			if err != nil {
+				fmt.Println("Incorrect filepath format: ", err)
+				return
+			}
+
+			err = addSystem(systemName, path)
 			if err == nil {
 				fmt.Println("System added successfully")
 			}
@@ -269,7 +285,7 @@ func main() {
 	var cmdRemoveBinding = &cobra.Command{
 		Use:   "unbind [binding name]",
 		Short: "Removes a binding",
-		Long:  "Removes a binding from bindings.json",
+		Long:  "Removes a binding from $HOME/.config/ecosystem-manager/bindings.json",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := removeBindingInteractive(args[0], args[1], args[2], args[3])
 			if err == nil {
@@ -278,7 +294,7 @@ func main() {
 		},
 	}
 	var cmdAddBinding = &cobra.Command{
-		Use:   "bind <event> <from> <to>",
+		Use:   "bind <event> <from> <to> <handler>",
 		Short: "Creates a Bind",
 		Long:  "Creates a Bind, they are stored in bindings.json and allow you to automatise interaction between different systems",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -316,7 +332,7 @@ func main() {
 				return
 			}
 			for i := range handlers {
-				runSystem(recievers[i], append([]string{handlers[i]}, args...))
+				runSystem(recievers[i], append([]string{handlers[i]}, args[2:]...))
 			}
 
 		},
