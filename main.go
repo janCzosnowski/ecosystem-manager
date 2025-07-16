@@ -107,7 +107,8 @@ func removeBindingInteractive(event, from, to, handler string) error {
 			updated = append(updated, b)
 		}
 	}
-	saveBindings("bindings.json", updated)
+	fmt.Println(updated)
+	saveBindings(bindingsListPath, updated)
 	return nil
 }
 
@@ -283,13 +284,17 @@ func main() {
 		},
 	}
 	var cmdRemoveBinding = &cobra.Command{
-		Use:   "unbind [binding name]",
-		Short: "Removes a binding",
-		Long:  "Removes a binding from $HOME/.config/ecosystem-manager/bindings.json",
+		Use:   "unbind <event|0> <from|0> <to|0> <handler|0>",
+		Short: "Removes bindings with specified filter(0 if none)",
+		Long:  "Removes bindings with specified filter(0 if none) from $HOME/.config/ecosystem-manager/bindings.json",
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 4 {
+				fmt.Println("Please insert 4 arguments")
+				return
+			}
 			err := removeBindingInteractive(args[0], args[1], args[2], args[3])
 			if err == nil {
-				fmt.Println("Binding removed successfully")
+				fmt.Println("Success")
 			}
 		},
 	}
