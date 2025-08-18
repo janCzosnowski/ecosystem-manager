@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,9 +17,10 @@ type Binding struct {
 	To      string `json:"to"`
 	Handler string `json:"handler"`
 }
+var bindingsListPath string
+var systemsListPath string
 
-var bindingsListPath = os.Getenv("HOME") + "/.config/ecosystem-manager/bindings.json"
-var systemsListPath = os.Getenv("HOME") + "/.config/ecosystem-manager/systems.json"
+
 
 func addBinding(Event, From, To, Handler string) error {
 	bindings, err := loadBindings()
@@ -126,13 +125,13 @@ func loadBindings() ([]Binding, error) {
 	return bindings, nil
 }
 
-func loadSystems() (map[string]string, error) {
+func loadSystems() ([]string, error) {
 	data, err := os.ReadFile(systemsListPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var systems map[string]string
+	var systems []string
 	err = json.Unmarshal(data, &systems)
 	if err != nil {
 		return nil, err
@@ -141,13 +140,13 @@ func loadSystems() (map[string]string, error) {
 	return systems, nil
 }
 
-func addSystem(systemName, path string) error {
+func addSystem(systemName string) error {
 	systems, err := loadSystems()
 	if err != nil {
 		fmt.Println("Failed loading systems:", err)
 		return err
 	}
-	systems[systemName] = path
+	systems = append(systems, systemName)
 	newFile, err := json.MarshalIndent(systems, "", " ")
 	if err != nil {
 		fmt.Println("Code error, failed to Marshall", err)
@@ -167,7 +166,12 @@ func removeSystem(systemName string) error {
 		fmt.Println("Failed loading systems:", err)
 		return err
 	}
-	delete(systems, systemName)
+    for i, v := range systems {
+        if v == systemName {
+            systems = append(systems[:i], systems[i+1:]...)
+        }
+    }
+
 	newFile, err := json.MarshalIndent(systems, "", " ")
 	if err != nil {
 		fmt.Println("Code error, failed to Marshall", err)
@@ -188,23 +192,25 @@ func runSystem(systemName string, systemArgs []string) {
 		fmt.Println("Error loading systems:", err)
 		return
 	}
+	var contains = false
+    for _, v := range systems {
+        if v == systemName {
+            contains = true
+        }
+    }
+    
 
-	if _, exists := systems[systemName]; !exists {
+	if !contains {
 		fmt.Printf("Requested system '%s' not added to /.config/ecosystem-manager/systems.json\n", systemName)
 		return
 	}
 
-	scriptPath := fmt.Sprintf("%s", systems[systemName])
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		fmt.Printf("Error: The executable %s doesn't exist", scriptPath)
-		return
-	}
+	
 
-	cmdToRun := exec.Command(scriptPath, systemArgs...)
+	cmdToRun := exec.Command(systemName, systemArgs...)
 	cmdToRun.Stdout = os.Stdout
 	cmdToRun.Stderr = os.Stderr
 
-	fmt.Println("Running:", systemName, "at", scriptPath, "with args:", strings.Join(systemArgs, ""))
 	err = cmdToRun.Run()
 	if err != nil {
 		fmt.Println("Error running system:", err)
@@ -212,6 +218,12 @@ func runSystem(systemName string, systemArgs []string) {
 }
 
 func main() {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		fmt.Println("Couldn't load config directory")
+	}
+	bindingsListPath = configDir + "/ecosystem-manager/bindings.json"
+	systemsListPath = configDir + "/ecosystem-manager/systems.json"
 	var rootCmd = &cobra.Command{Use: "eco"}
 
 	var cmdRun = &cobra.Command{
@@ -241,12 +253,11 @@ func main() {
 				fmt.Println("error loading systems:", err)
 				return
 			}
-			seq := maps.Keys(systems)
-			var keys string
-			for key := range seq {
-				keys = keys + "\n" + key
+			systemList := ""
+			for _, key := range systems {
+				systemList = systemList + "\n" + key
 			}
-			fmt.Printf("Systems:%v", keys)
+			fmt.Printf("Systems:%v", systemList)
 		},
 	}
 	var cmdRemoveSystem = &cobra.Command{
@@ -271,13 +282,12 @@ func main() {
 			}
 
 			systemName := args[0]
-			path, err := filepath.Abs(args[1])
 			if err != nil {
 				fmt.Println("Incorrect filepath format: ", err)
 				return
 			}
 
-			err = addSystem(systemName, path)
+			err = addSystem(systemName)
 			if err == nil {
 				fmt.Println("System added successfully")
 			}

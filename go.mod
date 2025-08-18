@@ -1,4 +1,4 @@
-module eco-system-manager
+module ecosystem-manager
 
 go 1.24.1
 
