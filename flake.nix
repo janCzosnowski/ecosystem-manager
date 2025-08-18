@@ -1,5 +1,5 @@
 {
-  description = "A very basic flake";
+  description = "Interaction layer for my stuff";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -16,7 +16,7 @@
 				{
 								packages.${system}.default = pkgs.buildGoModule {
 												pname = "ecosystem-manager";
-												version = "1.0.1";
+												version = "1.0.2";
 												src = ./.;
 
 												vendorHash = "sha256-m5mBubfbXXqXKsygF5j7cHEY+bXhAMcXUts5KBKoLzM=";

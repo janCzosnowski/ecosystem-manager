@@ -224,6 +224,36 @@ func main() {
 	}
 	bindingsListPath = configDir + "/ecosystem-manager/bindings.json"
 	systemsListPath = configDir + "/ecosystem-manager/systems.json"
+	os.MkdirAll(configDir + "/ecosystem-manager", 0755)
+	_, err = os.Stat(bindingsListPath)
+	if os.IsNotExist(err) {
+		f, err := os.Create(bindingsListPath)
+		if(err != nil){
+			fmt.Println("Error creating a bindings list file at", bindingsListPath + ":", err)
+		}
+		defer f.Close()
+		_, err = f.WriteString("[]")
+		if err != nil {
+			fmt.Println("Error creating a bindings list file at", bindingsListPath + ":", err)
+		}
+	} else if err != nil {
+		fmt.Println("Error creating a bindings list file at", bindingsListPath + ":", err)
+	}
+	_, err = os.Stat(systemsListPath)
+	if os.IsNotExist(err) {
+		f, err := os.Create(systemsListPath)
+		if(err != nil){
+			fmt.Println("Error creating a systems list file at", systemsListPath + ":", err)
+		}
+		defer f.Close()
+		_, err = f.WriteString("[]")
+		if err != nil {
+			fmt.Println("Error creating a systems list file at", systemsListPath + ":", err)
+		}
+	} else if err != nil {
+		fmt.Println("Error creating a systems list file at", systemsListPath + ":", err)
+	}
+	
 	var rootCmd = &cobra.Command{Use: "eco"}
 
 	var cmdRun = &cobra.Command{
