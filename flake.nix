@@ -12,7 +12,7 @@
           config.allowUnfree = true;
         };
       in {
-        packages.${system}.default = pkgs.buildGoModule {
+        defaultPackage = pkgs.buildGoModule {
           pname = "ecosystem-manager";
           version = "1.0.3";
           src = ./.;
