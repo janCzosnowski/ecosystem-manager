@@ -5,9 +5,8 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }: {
-    packages = builtins.genAttrs nixpkgs.lib.systems.flakeExposed (system:
-      let
+  outputs = { self, nixpkgs }: let
+				system = "x86_64-linux";
         pkgs = import nixpkgs {
           inherit system;
           config.allowUnfree = true;
@@ -19,8 +18,7 @@
           src = ./.;
           vendorHash = "sha256-m5mBubfbXXqXKsygF5j7cHEY+bXhAMcXUts5KBKoLzM=";
         };
-      }
-    );
-  };
+      };
+    
 }
 
