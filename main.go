@@ -19,8 +19,39 @@ type Binding struct {
 }
 var bindingsListPath string
 var systemsListPath string
+var ecosystemConfigPath string
 
+func addSystem(path, appName string) error {
+    contentBytes, err := os.ReadFile(path)
+		if os.IsNotExist(err){
+			defaultConfig := `{
+	apps = {
+		#new apps will be appended here
+	};
+}`
+			err := os.WriteFile(path, []byte(defaultConfig), 0644)
+			if err != nil{
+				return err
+			}
+		} else if err != nil {
+        return err
+    }
+    content := string(contentBytes)
 
+    newApp := fmt.Sprintf(`  %s = {
+    		enable = true;
+    		events = {};
+  		};
+`, appName)
+
+    // Insert new app before the anchor comment
+    if !strings.Contains(content, "#new apps will be appended here") {
+        return fmt.Errorf("cannot find anchor comment in config")
+    }
+    content = strings.Replace(content, "#new apps will be appended here", newApp+"  #new apps will be appended here", 1)
+
+    return os.WriteFile(path, []byte(content), 0644)
+}
 
 func addBinding(Event, From, To, Handler string) error {
 	bindings, err := loadBindings()
@@ -140,25 +171,6 @@ func loadSystems() ([]string, error) {
 	return systems, nil
 }
 
-func addSystem(systemName string) error {
-	systems, err := loadSystems()
-	if err != nil {
-		fmt.Println("Failed loading systems:", err)
-		return err
-	}
-	systems = append(systems, systemName)
-	newFile, err := json.MarshalIndent(systems, "", " ")
-	if err != nil {
-		fmt.Println("Code error, failed to Marshall", err)
-		return err
-	}
-	err = os.WriteFile(systemsListPath, newFile, 0644)
-	if err != nil {
-		fmt.Println("Error saving /.config/ecosystem-manager/systems.json:", err)
-		return err
-	}
-	return nil
-}
 
 func removeSystem(systemName string) error {
 	systems, err := loadSystems()
@@ -222,8 +234,7 @@ func main() {
 	if err != nil {
 		fmt.Println("Couldn't load config directory")
 	}
-	bindingsListPath = configDir + "/ecosystem-manager/bindings.json"
-	systemsListPath = configDir + "/ecosystem-manager/systems.json"
+	ecosystemConfigPath = configDir + "/ecosystem-manager/ecosystemConfig.nix"
 	os.MkdirAll(configDir + "/ecosystem-manager", 0755)
 	_, err = os.Stat(bindingsListPath)
 	if os.IsNotExist(err) {
@@ -305,21 +316,17 @@ func main() {
 	var cmdAddSystem = &cobra.Command{
 		Use:   "add [system name] [system main executable path]",
 		Short: "Adds a system",
-		Long:  "Adds a system to $HOME/.config/ecosystem-manager/systems.json",
+		Long:  "Adds a system to $HOME/.config/ecosystem-manager/ecosystemConfig.nix",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 2 {
-				fmt.Println("Please insert 2 arguments: name and path")
+			if len(args) != 1 {
+				fmt.Println("Please insert system name")
 			}
 
 			systemName := args[0]
-			if err != nil {
-				fmt.Println("Incorrect filepath format: ", err)
-				return
-			}
 
-			err = addSystem(systemName)
-			if err == nil {
-				fmt.Println("System added successfully")
+			err = addSystem(ecosystemConfigPath, systemName)
+			if err != nil {
+				fmt.Println("Error adding system:", err)
 			}
 		},
 	}
